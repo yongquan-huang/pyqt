@@ -1,0 +1,127 @@
+1.MainWin.py:第一个界面，实现实时数据显示
+1）引用字体图片和工况及图片
+PyQt5书中114页—121页。
+新建.qrc文件可以先新建一个txt文件，将内容写入进去后，在将txt文件后缀格式转换为qrc。
+qt designer放大图片可以先把lable控件调大到想要的大小，然后点击右边pixmap属性下面中的框
+2）仪表盘绘制：
+转速表：https://www.cnblogs.com/wangmantou/p/11662779.html
+水温表及其他只是删掉原先转速表中边框的代码
+3）在主窗口嵌入子窗口：解决将仪表盘嵌入到原先利用qt desinger做出来的界面
+PyQt5书上112页加载其他窗口
+
+2.historyWin.py:历史数据界面
+1）曲线绘制
+PyQt5书上445页Matplotlib在PyQt中的应用
+2）解决横坐标的刻度格式
+格式化时间数据输入(格式化字符串）：
+from datetime import datetime
+x = [datetime.strptime(d, '%d-%H-%M-%S') for d in x]  #格式化字符串
+设置横坐标时间标签的格式(设置相对应的格式）：
+ax=fig.add_subplot(111)                                         # 定义子图
+plt.xticks(rotation=70)                                            # 横坐标刻度旋转角度
+xfmt = md.DateFormatter('%d %H:%M:%S')           # 设置横坐标时间标签的格式
+ax.axes.xaxis.set_major_formatter(xfmt)
+3）缩小横纵坐标刻度字体大小
+调节在定义画板类History_Canvas的dpi值
+4）自动旋转横坐标刻度
+fig=plt.figure()
+5）坐标密度修改
+import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
+x = [0,5,9,10,15]
+y = [0,1,2,3,4]
+tick_spacing = 5
+ax = plt.subplots(1,1)
+ax.plot(x,y)
+# 设置横坐标刻度间隔为ticktick_spacing = 5，横坐标就只会呈现0，5，10，15
+ax.xaxis.set_major_locator(ticker.MultipleLocator(tick_spacing))  
+plt.show()
+
+6）在主窗口嵌入8个子窗口：方法同上
+
+3.realtimeWin.py:实时数据波形显示
+代码大体上跟历史数据界面窗口相同，区别在于在数据是用列表将实时数据存储起来，当列表数据个数大于100时，让列表=最后100个数据，并且绘图都不保留上一次绘图的结果
+if len(self.genqieqiyouya_y)>100 :  #and len(self.genqieqiliuliang_y)>5 当大于100时，绘图都不保留上一次绘图的结果，实现左移
+    self.genqieqiyouya_y = self.genqieqiyouya_y[1:]
+    # self.genqieqiliuliang_y = self.genqieqiliuliang_y[1:]
+    self.axes.cla()  #画布清空
+
+4.数据交互
+1.实时数据，导入torque_real_data_dict, ins_real_data_dict字典
+from run.run2020.env2019.env.app.CloudConn.cane_harvester import torque_real_data_dict, ins_real_data_dict
+读取方法：如果字典有'xxx'键的数据就读取xxx的值，没有的话就置为0
+ins_real_data_dict.get('engine_speed', 0)
+genqieqiyouya = torque_real_data_dict.get('1_torque_ch', 0)
+2.历史数据，读取torque_data.txt、ins_data.txt文件，并存储到列表中。注意从文件读取torque_data.txt、ins_data.txt文件的内容是如下：
+'{'time': '12-11-26-20', '7_torque_ch': -5, '6_torque_ch': -4, '5_torque_ch': -1, '2_torque_ch': 0, 'Number': 30760, '8_torque_ch': -2, '4_torque_ch': 0, '3_torque_ch': -2, '1_torque_ch': 1}'
+是字符串类型，所以要将其转换为字典类型，用ins_data = eval(line2)函数解决
+
+5.数据模拟
+mport serial
+import threading
+
+time_x = []
+shuiwen_y = [0,]
+youya_y = [0,]
+fadongji_y = [0,]
+genqieqiyouya_y = [0,]
+genqieqiliuliang_y = [0,]
+shusonggunyouya_y = [0,]
+shusonggunliuliang_y = [0,]
+qieduandaoyouya_y = [0,]
+qieduandaoliuliang_y = [0,]
+paifengjiyouya_y = [0,]
+paifengjiliuliang_y = [0,]
+erjishusongyouya_y = [0,]
+erjishusongliuliang_y = [0,]
+
+class WorkThread(threading.Thread):
+    def __init__(self):
+        super(WorkThread,self).__init__()
+
+    def run(self):
+        # 端口，GNU / Linux上的/ dev / ttyUSB0 等 或 Windows上的 COM3 等
+        # portx = "/dev/ttyS1"
+        portx = "COM5"
+        # 波特率，标准值之一：50,75,110,134,150,200,300,600,1200,1800,2400,4800,9600,19200,38400,57600,115200
+        bps = 115200
+        # 超时设置,None：永远等待操作，0为立即返回请求结果，其他值为等待超时时间(单位为秒）
+        timex = 5
+        # 打开串口，并得到串口对象
+        ser = serial.Serial(portx, bps, timeout=timex)
+        global time_x, shuiwen_y, youya_y, fadongji_y, genqieqiyouya_y, genqieqiliuliang_y,shusonggunyouya_y, shusonggunliuliang_y,\
+               qieduandaoyouya_y, qieduandaoliuliang_y, paifengjiyouya_y, paifengjiliuliang_y, erjishusongyouya_y, erjishusongliuliang_y
+        while True:
+            line = ser.read(23)
+            # print(line)
+            if line:
+                data = line.hex()
+                # print(data)
+                # data2 = int(data,10)
+                data2 = '0x' + data[6:10]
+                genqieqiyouya_y.append(int(data2,16))
+                data3 = '0x' + data[10:14]
+                shusonggunyouya_y.append(int(data3,16))
+                data4 = '0x' + data[14:18]
+                qieduandaoyouya_y.append(int(data4, 16))
+                data5 = '0x' + data[18:22]
+                paifengjiyouya_y.append(int(data5, 16))
+                data6 = '0x' + data[22:26]
+                erjishusongyouya_y.append(int(data6, 16))
+                data7 = '0x' + data[26:30]
+                shuiwen_y.append(int(data7, 16))
+                data8 = '0x' + data[30:34]
+                youya_y.append(int(data8, 16))
+                data9 = '0x' + data[34:38]
+                fadongji_y.append(int(data9, 16))
+                # print(genqieqiyouya_y,shusonggunyouya_y)  #显示读取到的信息
+                # print(data2)
+                # print(int(data2,16))
+            #     data = int(line,10)
+            #     print(data)
+        # self.trigger.emit()
+
+if __name__ == '__main__':
+    thread = WorkThread()
+    thread.start()
+
